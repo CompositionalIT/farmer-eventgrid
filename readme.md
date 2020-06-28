@@ -23,9 +23,15 @@ You can test the web app locally using the `sample.rest` file, which contains sa
 the webhook (both for the validation message and events).
 
 ## Deploying and Running
-To deploy the infrastucture, run the infrastructure project which will provision all the resources.
-You should rename `yourName` to some aribtrary name to uniquely identify your resources globally. The
-resources are deployed in two steps: first, the web app is deployed, and then the remaining resources.
+First, build and publish the web app into the deploy folder:
+
+`dotnet publish src\eventgrid -c Release -o Deploy`
+
+Now, deploy the infrastucture. You should rename `yourName` to some aribtrary name to uniquely
+identify your resources globally. Once ready, run the infrastructure project which will provision
+all the resources and upload the application you just built using `dotnet run -p src\infrastructure`
+
+The resources are deployed in two steps: first, the web app is deployed, and then the remaining resources.
 This is because EventGrid needs the web app to be running *with the deployed webhook*; otherwise, ARM
 fails to deploy the template.
 
