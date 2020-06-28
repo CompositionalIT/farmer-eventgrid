@@ -2,17 +2,22 @@
 open Farmer.Builders
 open System.IO
 
-let topicName = "isaacssupertopic"
-let subscriptionName = "isaacsupersub"
+let yourName = "isaac"
+
+let topicName = yourName + "ssupertopic"
+let subscriptionName = yourName + "supersub"
+let storageName = yourName + "gestorage"
+let webName = yourName + "geweb"
+
 let toAzure = Deploy.execute "my-resource-group" [] >> ignore
 
 let eventStorage = storageAccount {
-    name "isaacegstorage"
+    name storageName
     add_private_container "data"
 }
 
 let eventWeb = webApp {
-    name "isaacegweb"
+    name webName
     run_from_package
     zip_deploy (Path.GetFullPath (__SOURCE_DIRECTORY__ + @"\..\..\deploy"))
 }

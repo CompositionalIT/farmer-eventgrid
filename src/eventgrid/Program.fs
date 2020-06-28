@@ -15,50 +15,52 @@ type StorageEvent =
 
 let inMemoryDatabase = ResizeArray()
 
-let handleEvent (body:EventGridEvent) : HttpHandler option =
-    match body.Data with
-    | :? SubscriptionValidationEventData as e ->
-        Some (Successful.OK (SubscriptionValidationResponse(ValidationResponse = e.ValidationCode)))
+/// Handles Azure Event Grid messages
+module EventGridHandling =
+    let handleEvent (body:EventGridEvent) : HttpHandler option =
+        match body.Data with
+        | :? SubscriptionValidationEventData as e ->
+            Some (Successful.OK (SubscriptionValidationResponse(ValidationResponse = e.ValidationCode)))
 
-    | :? StorageBlobCreatedEventData as event ->
-        inMemoryDatabase.Add (BlobCreated (DateTime.UtcNow, event))
-        Some (Successful.OK "Handled Blob Created")
+        | :? StorageBlobCreatedEventData as event ->
+            inMemoryDatabase.Add (BlobCreated (DateTime.UtcNow, event))
+            Some (Successful.OK "Handled Blob Created")
 
-    | :? StorageBlobDeletedEventData as event ->
-        inMemoryDatabase.Add (BlobDeleted (DateTime.UtcNow, event))
-        Some (Successful.OK "Handled Blob Deleted")
+        | :? StorageBlobDeletedEventData as event ->
+            inMemoryDatabase.Add (BlobDeleted (DateTime.UtcNow, event))
+            Some (Successful.OK "Handled Blob Deleted")
 
-    | _ ->
-        None
+        | _ ->
+            None
 
-let handleEventGridMessage next (ctx:HttpContext) = task {
-    let subscriber = EventGridSubscriber()
-    let! body = ctx.ReadBodyFromRequestAsync()
+module RouteHandlers =
+    let handleEventGridMessage next (ctx:HttpContext) = task {
+        let subscriber = EventGridSubscriber()
+        let! body = ctx.ReadBodyFromRequestAsync()
 
-    return!
-        body
-        |> Option.ofNullOrEmptyString
-        |> Option.map (subscriber.DeserializeEventGridEvents >> Array.choose handleEvent)
-        |> Option.defaultValue Array.empty
-        |> Array.tryHead
-        |> function
-        | Some firstResponse -> firstResponse next ctx
-        | None -> RequestErrors.BAD_REQUEST "Unknown event grid message type" next ctx
-}
+        return!
+            body
+            |> Option.ofNullOrEmptyString
+            |> Option.map (subscriber.DeserializeEventGridEvents >> Array.choose EventGridHandling.handleEvent)
+            |> Option.defaultValue Array.empty
+            |> Array.tryHead
+            |> function
+            | Some firstResponse -> firstResponse next ctx
+            | None -> RequestErrors.BAD_REQUEST "Unknown event grid message type" next ctx
+    }
 
-let getAuditLog next ctx =
-    json
-        [ for event in inMemoryDatabase do
-            match event with
-            | BlobCreated (date, e) -> {| Date = date; Route = e.Url; Api = e.Api; BlobType = e.BlobType; Event = "Blob Created" |}
-            | BlobDeleted (date, e) -> {| Date = date; Route = e.Url; Api = e.Api; BlobType = e.BlobType; Event = "Blob Deleted" |}
+    let getAuditLog next ctx =
+        let data =[
+            for event in inMemoryDatabase do
+                match event with
+                | BlobCreated (date, e) -> {| Date = date; Route = e.Url; Api = e.Api; BlobType = e.BlobType; Event = "Blob Created" |}
+                | BlobDeleted (date, e) -> {| Date = date; Route = e.Url; Api = e.Api; BlobType = e.BlobType; Event = "Blob Deleted" |}
         ]
-        next
-        ctx
+        json data next ctx
 
 let routes = router {
-    post "/api/event" handleEventGridMessage
-    get "/api/database" getAuditLog
+    post "/api/event" RouteHandlers.handleEventGridMessage
+    get "/api/database" RouteHandlers.getAuditLog
 }
 
 let app = application {
