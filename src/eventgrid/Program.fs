@@ -5,6 +5,7 @@ open Microsoft.Azure.EventGrid
 open Microsoft.Azure.EventGrid.Models
 open Saturn
 open System
+open Giraffe.GiraffeViewEngine
 
 module Option =
     let ofNullOrEmptyString s = if System.String.IsNullOrEmpty s then None else Some s
@@ -49,6 +50,43 @@ module RouteHandlers =
             | None -> RequestErrors.BAD_REQUEST "Unknown event grid message type" next ctx
     }
 
+    let getAuditTable next ctx =
+        let view =
+            html [ ] [
+                link [ _rel "stylesheet"; _href "https://cdn.jsdelivr.net/npm/bulma@0.9.0/css/bulma.min.css" ]
+                body [] [
+                    section [ _class "section" ] [
+                        div [ _class "container" ] [
+                            match inMemoryDatabase.Count with
+                            | 0 ->
+                                h1 [ _class "title" ] [ str "No data!" ]
+                                h2 [ _class "subtitle" ] [ str "Upload or delete some blobs from the storage account!" ]
+                            | events ->
+                                h1 [ _class "title" ] [ str "Event Grid events!" ]
+                                h2 [ _class "subtitle" ] [ str (sprintf "%d events so far" events) ]
+                                table [ _class "table" ] [
+                                    thead [] [
+                                        tr [] [
+                                            for heading in [ "Date"; "Url"; "Api"; "Blob Type"; "Event" ] do
+                                                th [] [ str heading ]
+                                        ]
+                                    ]
+                                    for event in inMemoryDatabase do
+                                        let row =
+                                            match event with
+                                            | BlobCreated (date, e) -> [ string date; string e.Url; string e.Api; string e.BlobType; "Blob Created" ]
+                                            | BlobDeleted (date, e) -> [ string date; string e.Url; string e.Api; string e.BlobType; "Blob Deleted" ]
+                                        tr [] [
+                                            for col in row do
+                                                td [] [ str col ]
+                                        ]
+                                ]
+                        ]
+                    ]
+                ]
+            ]
+        htmlView view next ctx
+
     let getAuditLog next ctx =
         let data =[
             for event in inMemoryDatabase do
@@ -61,6 +99,7 @@ module RouteHandlers =
 let routes = router {
     post "/api/event" RouteHandlers.handleEventGridMessage
     get "/api/database" RouteHandlers.getAuditLog
+    get "/" RouteHandlers.getAuditTable
 }
 
 let app = application {

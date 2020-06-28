@@ -36,4 +36,4 @@ This is because EventGrid needs the web app to be running *with the deployed web
 fails to deploy the template.
 
 Once done, you can go to the storage account and add / remove several files; browse the web application
-(`api/database`) and you will see that the events are displayed as JSON.
+and you will see all the events rendered in HTML. Hitting `api/database` will show the events in JSON.
